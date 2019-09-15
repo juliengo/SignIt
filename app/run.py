@@ -201,8 +201,15 @@ def predict_image_from_url(image_url):
         image = Image.open(testImage)
         return _predict_image(image)
 
+def predict_local_image(image_location):
+    _initialize()
 
-image_url = 'https://raw.githubusercontent.com/Azure-Samples/functions-python-tensorflow-tutorial/master/resources/assets/samples/cat1.png'
-results = predict_image_from_url(image_url)
+    image = Image.open(image_location)
+    return  _predict_image(image)
 
-print(results['predictedTagName'])
+
+
+#image_url = 'https://raw.githubusercontent.com/Azure-Samples/functions-python-tensorflow-tutorial/master/resources/assets/samples/cat1.png'
+#results = predict_image_from_url(image_url)
+
+#print(results['predictedTagName'])
