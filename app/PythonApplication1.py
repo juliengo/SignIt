@@ -83,6 +83,8 @@ def appendToSentence(result):
         sentence = ''
     if result=="nothing":
         pass
+    elif result=="thumbs":
+        sentence += " GOOD JOB! "
     else:
         sentence += result
 
@@ -187,7 +189,6 @@ if __name__ == "__main__":
             prev_word = result'''
         else:
             cv2.putText(image, "analyzing", (50,50), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
-
        
         num_frames += 1
         score = 2
