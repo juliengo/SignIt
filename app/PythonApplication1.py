@@ -5,6 +5,7 @@ import os
 import matplotlib
 import numpy as np
 import imutils 
+import time
 
 import tensorflow as tf
 
@@ -16,6 +17,8 @@ fileImage = dir_path+"/test.png"
 
 import threading
 
+loadingBuffer = 0
+
 bg = None
 sentence = ''
 result = ''
@@ -24,6 +27,9 @@ characterHeld = False
 num_frames = 0
 prev_word_count = 0
 prev_word = ''
+
+busy = False
+bgModel = False
 
 def run_avg(image, aWeight):
     global bg
@@ -55,21 +61,40 @@ def segment(image, threshold=25):
         segmented = max(cnts, key=cv2.contourArea)
         return (thresholded, segmented)
 
-def predictImage():
+def predictImage(roi):
+    global busy
+    cv2.imwrite(fileImage,roi)
     results = predict_local_image(fileImage)
     if(results):
         letter = results['predictedTagName']
         appendToSentence(letter)
         print(letter)
+        
+        busy = False
 
 
-def createThread():
-    thr = threading.Thread(target=predictImage,args=(),kwargs={})
+def createThread(roi):
+    thr = threading.Thread(target=predictImage,args=(roi,),kwargs={})
     thr.start()
 
 def appendToSentence(result):
     global sentence
-    sentence += result
+    if(len(sentence) > 15):
+        sentence = ''
+    if result=="nothing":
+        pass
+    else:
+        sentence += result
+
+def removeBG(frame):
+    fgmask = bgModel.apply(frame,learningRate=0)
+    # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    # res = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
+
+    kernel = np.ones((0, 0), np.uint8)
+    fgmask = cv2.erode(fgmask, kernel, iterations=1)
+    res = cv2.bitwise_and(frame, frame, mask=fgmask)
+    return res
     
 
 if __name__ == "__main__":
@@ -88,20 +113,23 @@ if __name__ == "__main__":
 
         #set the rectangle coordinates 
         if rect:
-            top, right, bottom, left = 100, 600, 700, 1200
+            top, right, bottom, left = 100,0,700,600 #100, 600, 700, 1200
 
         (height, width) = image.shape[:2]
 
         # get the ROI
         roi = image[top:bottom, right:left]
 
+        '''if(bgModel):
+            roi = removeBG(roi)
+            cv2.imshow("mask",roi)'''
 
         # convert the roi to grayscale and blur it
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (7, 7), 0)
 
 
-        if num_frames < 30:
+        if num_frames < 10:
             run_avg(gray, aWeight)
         else:
             # segment the hand region
@@ -115,7 +143,7 @@ if __name__ == "__main__":
 
                 # draw the segmented region and display the frame
                 cv2.drawContours(image, [segmented + (right, top)], -1, (0, 0, 255))
-                cv2.imshow("Thesholded", thresholded)
+                #cv2.imshow("Thesholded", thresholded)
 
                 
 
@@ -128,16 +156,23 @@ if __name__ == "__main__":
         # if the user pressed "q", then stop looping
         if keypress == ord("q"):
             break
+        elif keypress == ord('b'):  # press 'b' to capture the background
+            bgModel = cv2.createBackgroundSubtractorMOG2(0, 50)
+            isBgCaptured = 1
+            print( '!!!Background Captured!!!')
 
         image_data = cv2.imencode('.jpg', image)[1].tostring()
         
-        if num_frames == 20:
-            cv2.imwrite(fileImage,roi)
 
-            createThread()
-            
+        if busy==False:#num_frames >= 20:
+            loadingBuffer += 1
+            cv2.putText(image, "Set hand", (50,50), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
+            if(loadingBuffer >= 20):
+                loadingBuffer = 0
+                busy=True
+                createThread(roi)
+                
 
-            num_frames = 0
 
             '''#buffer
             if prev_word == result:
@@ -150,13 +185,15 @@ if __name__ == "__main__":
                 characterHeld = True
                 prev_word_count = 0
             prev_word = result'''
+        else:
+            cv2.putText(image, "analyzing", (50,50), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
 
        
         num_frames += 1
         score = 2
         #prev_word = result
         cv2.putText(image, "%s" % (result.upper()), (100,400), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
-        cv2.putText(image, '(score = %.5f)' % (float(score)), (100,450), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
+        #cv2.putText(image, '(score = %.5f)' % (float(score)), (100,450), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,255,255))
 
         cv2.imshow("Video Feed", image)
 
